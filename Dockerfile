@@ -29,4 +29,6 @@ ADD https://bintray.com/artifact/download/lmineiro/maven/cassandra-etcd-seed-pro
 # ADD cassandra-etcd-seed-provider-1.0.jar /opt/cassandra/lib/
 
 COPY stups-cassandra.sh /opt/cassandra/bin/
-CMD /opt/cassandra/bin/stups-cassandra.sh
+COPY supervisor.sh /opt/cassandra/bin/
+
+CMD /opt/cassandra/bin/supervisor.sh
