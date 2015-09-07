@@ -104,6 +104,7 @@ while true; do
         else
             echo "There are already some seed nodes ..."
 
+            seed_reached=false
             for seed in $SEEDS; do
                 echo "Querying a seed node ${seed} for the cluster status ..."
                 if nodetool -h $seed status >/tmp/nodetool-remote-status ;
@@ -115,6 +116,7 @@ while true; do
                         REPLACE_ADDRESS_PARAM=-Dcassandra.replace_address=${DEAD_NODE_ADDRESS}
                     fi
                     # we've reached one seed, no point to keep trying
+                    seed_reached=true
                     break
                 else
                     # This might be a seed from an earlier incarnation of this
@@ -126,6 +128,12 @@ while true; do
                     curl -Lsf "${ETCD_OPSCENTER_URL}?recursive=true" -XDELETE > /dev/null
                 fi
             done
+
+            if [ $seed_reached = false ] ;
+            then
+                echo "No seeds could be reached ..."
+                register_as_seed
+            fi
         fi
         break
     else
