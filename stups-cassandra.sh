@@ -8,7 +8,7 @@
 
 # http://docs.datastax.com/en/cassandra/2.0/cassandra/architecture/architectureGossipAbout_c.html
 # "...it is recommended to use a small seed list (approximately three nodes per data center)."
-NEEDED_SEEDS=$((CLUSTER_SIZE > 3 ? 3 : 1))
+NEEDED_SEEDS=${NEEDED_SEEDS:-$((CLUSTER_SIZE > 3 ? 3 : 1))}
 TTL=${TTL:-30}
 
 if [ -z "$ETCD_URL" ] ;
@@ -26,22 +26,26 @@ fi
 
 if [ -z "$LISTEN_ADDRESS" ] ;
 then
-    if [ "$MULTI_REGION" = "0" ] ;
-    then
-        export LISTEN_ADDRESS=$(curl -Ls -m 4 http://169.254.169.254/latest/meta-data/local-ipv4)
-    else
-        export LISTEN_ADDRESS=$(curl -Ls -m 4 http://169.254.169.254/latest/meta-data/public-ipv4)
-    fi
+    export LISTEN_ADDRESS=$(curl -Ls -m 4 http://169.254.169.254/latest/meta-data/local-ipv4)
 fi
-echo "Node IP address is $LISTEN_ADDRESS ..."
+echo "Node private IP address is $LISTEN_ADDRESS ..."
+
+if [ -z "$BROADCAST_ADDRESS" -a "$MULTI_REGION" != "0" ] ;
+then
+    export BROADCAST_ADDRESS=$(curl -Ls -m 4 http://169.254.169.254/latest/meta-data/public-ipv4)
+fi
+if [ -n "$BROADCAST_ADDRESS" ] ;
+then
+    echo "Node public IP address is $BROADCAST_ADDRESS ..."
+fi
 
 if [ -z $SNITCH ] ;
 then
-    if [ "$MULTI_REGION" = "0" ] ;
+    if [ "$MULTI_REGION" != "0" ] ;
     then
-        export SNITCH="Ec2Snitch"
-    else
         export SNITCH="Ec2MultiRegionSnitch"
+    else
+        export SNITCH="Ec2Snitch"
     fi
 fi
 
@@ -64,7 +68,6 @@ fi
 
 if [ -n "$INITIAL_SEEDS_LIST" ] ;
 then
-    INITIAL_SEEDS_LIST=$(echo $INITIAL_SEEDS_LIST)
     echo "$INITIAL_SEEDS_LIST" | tr ' ' '\n' | while read seed_address; do
         echo "Injecting into initial seeds list: ${seed_address} ..."
         curl -Lsf "${ETCD_URL}/v2/keys/cassandra/${CLUSTER_NAME}/seeds" \
@@ -83,7 +86,7 @@ while true; do
         then
             echo "Registering node as seed ..."
             curl -Lsf "${ETCD_URL}/v2/keys/cassandra/${CLUSTER_NAME}/seeds" \
-                -XPOST -d value=${LISTEN_ADDRESS} > /dev/null
+                -XPOST -d value=${BROADCAST_ADDRESS:-$LISTEN_ADDRESS} > /dev/null
         fi
 
         # Register the cluster with OpsCenter if there's already at least 1 seed node
