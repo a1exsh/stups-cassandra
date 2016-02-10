@@ -3,6 +3,8 @@
 # DATA_DIR
 # COMMIT_LOG_DIR
 # LISTEN_ADDRESS
+# MULTI_REGION
+# INITIAL_SEEDS_LIST
 
 # http://docs.datastax.com/en/cassandra/2.0/cassandra/architecture/architectureGossipAbout_c.html
 # "...it is recommended to use a small seed list (approximately three nodes per data center)."
@@ -22,25 +24,32 @@ then
     exit 1
 fi
 
-# TODO: use public-ipv4 if multi-region
 if [ -z "$LISTEN_ADDRESS" ] ;
 then
-    export LISTEN_ADDRESS=$(curl -Ls -m 4 http://169.254.169.254/latest/meta-data/local-ipv4)
+    if [ "$MULTI_REGION" = "0" ] ;
+    then
+        export LISTEN_ADDRESS=$(curl -Ls -m 4 http://169.254.169.254/latest/meta-data/local-ipv4)
+    else
+        export LISTEN_ADDRESS=$(curl -Ls -m 4 http://169.254.169.254/latest/meta-data/public-ipv4)
+    fi
 fi
-
 echo "Node IP address is $LISTEN_ADDRESS ..."
 
-# TODO: Use diff. Snitch if Multi-Region
 if [ -z $SNITCH ] ;
 then
-    export SNITCH="Ec2Snitch"
+    if [ "$MULTI_REGION" = "0" ] ;
+    then
+        export SNITCH="Ec2Snitch"
+    else
+        export SNITCH="Ec2MultiRegionSnitch"
+    fi
 fi
 
 if [ -z "$OPSCENTER" ] ;
 then
     export OPSCENTER=$(curl -Ls -m 4 ${ETCD_URL}/v2/keys/cassandra/opscenter | jq -r '.node.value')
 fi
-     
+
 export DATA_DIR=${DATA_DIR:-/var/cassandra/data}
 export COMMIT_LOG_DIR=${COMMIT_LOG_DIR:-/var/cassandra/data/commit_logs}
             
@@ -51,6 +60,16 @@ if [ -n "$BACKUP_BUCKET" ] ;
 then 
     curl -s "${ETCD_URL}/v2/keys/cassandra/${CLUSTER_NAME}/snapshot_pattern/" \
       -XPUT -d value='05 ?' > /dev/null        
+fi
+
+if [ -n "$INITIAL_SEEDS_LIST" ] ;
+then
+    INITIAL_SEEDS_LIST=$(echo $INITIAL_SEEDS_LIST)
+    echo "$INITIAL_SEEDS_LIST" | tr ' ' '\n' | while read seed_address; do
+        echo "Injecting into initial seeds list: ${seed_address} ..."
+        curl -Lsf "${ETCD_URL}/v2/keys/cassandra/${CLUSTER_NAME}/seeds" \
+             -XPOST -d value=${seed_address} > /dev/null
+    done
 fi
 
 while true; do 

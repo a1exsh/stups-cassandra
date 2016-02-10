@@ -18,6 +18,15 @@ SenzaInfo:
     - ApplicationId:
         Description: "The application id according to yourturn"
         Default: "stups-cassandra"
+    - MultiRegion:
+        Description: "Setup configuration parameters for multi-region deployment"
+        Default: "0"
+    - InitialSeedsList:
+        Description: "Initial list of seed nodes to inject into local etcd storage (can be used to attach to a ring running in a different region)"
+        Default: ""
+    - RequiredSeedsCount:
+        Description: "Total number of seed nodes to register (including initial list)"
+        Default: ""
 
 SenzaComponents:
 
@@ -72,6 +81,9 @@ SenzaComponents:
           OPSCENTER: "{{Arguments.OpsCenterIp}}"
           TTL: 120
           APPLICATION_ID: "{{Arguments.ApplicationId}}"
+          MULTI_REGION: "{{Arguments.MultiRegion}}"
+          INITIAL_SEEDS_LIST: "{{Arguments.InitialSeedsList}}"
+          NEEDED_SEEDS: "{{Arguments.RequiredSeedsCount}}"
 
 
 Resources:
